@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Learning Flashcard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0F0C29;
+            --bg-mid: #302B63;
+            --bg-light: #24243E;
+            --accent-cyan: #00F5D4;
+            --accent-magenta: #9B5DE5;
+            --text-light: #F6F7F8;
+            --text-mid: #A9A8C3;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-mid) 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .stars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3.236 67.5L0 50l3.236-17.5L20.736 25l17.5-17.5L50 0l11.764 7.5L79.264 25l17.5 17.5L100 50l-3.236 17.5L79.264 75l-17.5 17.5L50 100l-11.764-7.5L20.736 75z' fill='%23fff' fill-opacity='.1'/%3E%3C/svg%3E");
+            animation: move-stars 120s linear infinite;
+        }
+        
+        @keyframes move-stars {
+            from { background-position: 0 0; }
+            to { background-position: 0 1000px; }
+        }
+
+
+        .mobile-card-container {
+            width: 375px;
+            height: 667px;
+            max-height: 95vh; /* So it doesn't get cut off on shorter screens */
+            perspective: 2000px;
+            z-index: 1;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        
+        .card-inner.is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            background-color: var(--bg-light);
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0);
+            background-size: 20px 20px;
+            border-radius: 30px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .card-back {
+            transform: rotateY(180deg);
+        }
+        
+        .card-header, .card-footer {
+             width: 100%;
+             z-index: 2;
+        }
+
+        .card-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+        
+        .card-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            color: var(--text-light);
+            text-shadow: 0 0 10px var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        /* Question Side (Front) */
+        .planet-container {
+            position: relative;
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        .planet-svg {
+            width: 200px;
+            height: auto;
+        }
+
+        .question-mark-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            color: white;
+            opacity: 0.8;
+            text-shadow: 0 0 15px rgba(0, 245, 212, 0.7);
+        }
+        
+        .question-text-box {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 245, 212, 0.3);
+            min-height: 80px;
+        }
+
+        .question-text-box p:first-child {
+            color: var(--text-mid);
+            font-size: 14px;
+        }
+        .question-text-box p:last-child {
+            color: var(--text-light);
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        /* Answer Side (Back) */
+        .astronaut-container {
+            width: 150px;
+            height: auto;
+            animation: float 8s ease-in-out infinite reverse;
+        }
+
+        .answer-box {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(155, 93, 229, 0.5);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+            min-height: 150px;
+        }
+
+        .answer-sentence {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-light);
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .answer-sentence .highlight {
+            color: var(--accent-cyan);
+            font-weight: 700;
+            text-shadow: 0 0 8px var(--accent-cyan);
+        }
+        
+        .grammar-explanation {
+            font-size: 14px;
+            color: var(--text-mid);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.2);
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        .grammar-explanation i {
+            color: var(--accent-magenta);
+        }
+
+        .tts-button {
+            background: none;
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .tts-button:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-dark);
+        }
+        
+        .action-button {
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-magenta));
+            color: var(--bg-dark);
+            border: none;
+            padding: 15px 20px;
+            width: 100%;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 10px 25px -10px var(--accent-cyan);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .action-button.secondary {
+            background: rgba(0,0,0,0.2);
+            color: var(--text-light);
+            border: 1px solid var(--accent-magenta);
+            box-shadow: none;
+        }
+
+        .action-button:hover:not(:disabled) {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 30px -10px var(--accent-magenta);
+        }
+
+        .action-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 245, 212, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 245, 212, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 245, 212, 0); }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        @media (max-width: 400px) {
+            body {
+                padding: 0;
+            }
+            .mobile-card-container {
+                width: 100%;
+                height: 100vh;
+                height: -webkit-fill-available;
+                max-height: none;
+            }
+            .card-face {
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="stars"></div>
+    <div class="mobile-card-container">
+        <div class="card-inner" id="cardInner">
+            <!-- Front of Card (Question) -->
+            <div class="card-face card-front">
+                <header class="card-header">
+                    <h2 class="card-title"><i class="fas fa-satellite-dish"></i> Cosmic Query</h2>
+                </header>
+                
+                <main>
+                    <div class="planet-container">
+                        <i class="fas fa-question question-mark-icon"></i>
+                        <svg class="planet-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <radialGradient id="planetGradient" cx="30%" cy="30%" r="70%">
+                                    <stop offset="0%" style="stop-color: #9B5DE5;" />
+                                    <stop offset="100%" style="stop-color: #302B63;" />
+                                </radialGradient>
+                                <filter id="glow">
+                                    <feGaussianBlur stdDeviation="3.5" result="coloredBlur"/>
+                                    <feMerge>
+                                        <feMergeNode in="coloredBlur"/>
+                                        <feMergeNode in="SourceGraphic"/>
+                                    </feMerge>
+                                </filter>
+                            </defs>
+                            <path d="M 100,55 A 100,30 0 1 0 100,145 A 100,30 0 1 0 100,55 Z" fill="none" stroke="#00F5D4" stroke-width="3" filter="url(#glow)"/>
+                            <circle cx="100" cy="100" r="60" fill="url(#planetGradient)" />
+                        </svg>
+                    </div>
+                    <div class="question-text-box" id="questionBox">
+                        <p id="questionPrompt">Construct a sentence in the past tense:</p>
+                        <p id="questionContent">She / write / her homework</p>
+                    </div>
+                </main>
+
+                <footer class="card-footer">
+                    <button class="action-button" onclick="flipCard()">
+                        <span>Engage Hyperdrive</span>
+                        <i class="fas fa-rocket"></i>
+                    </button>
+                </footer>
+            </div>
+
+            <!-- Back of Card (Answer) -->
+            <div class="card-face card-back">
+                <header class="card-header">
+                     <h2 class="card-title"><i class="fas fa-user-astronaut"></i> Mission Debrief</h2>
+                </header>
+
+                <main>
+                    <svg class="astronaut-container" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="astronautGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#F6F7F8;"/>
+                                <stop offset="100%" style="stop-color:#A9A8C3;"/>
+                            </linearGradient>
+                            <filter id="astroGlow">
+                                <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#9B5DE5"/>
+                            </filter>
+                        </defs>
+                        <g filter="url(#astroGlow)">
+                            <path fill="#302B63" d="M50 8c-8.8 0-16 7.2-16 16s7.2 16 16 16 16-7.2 16-16S58.8 8 50 8z"/>
+                            <path fill="url(#astronautGradient)" d="M50 10c-7.7 0-14 6.3-14 14s6.3 14 14 14 14-6.3 14-14-6.3-14-14-14z"/>
+                            <path fill="#00F5D4" d="M40 20h20v8H40z" opacity="0.7"/>
+                            <path fill="url(#astronautGradient)" d="M68 40H32c-4.4 0-8 3.6-8 8v28c0 4.4 3.6 8 8 8h36c4.4 0 8-3.6 8-8V48c0-4.4-3.6-8-8-8z"/>
+                            <rect x="45" y="55" width="10" height="10" rx="2" fill="#302B63"/>
+                        </g>
+                    </svg>
+                    <div class="answer-box">
+                        <button class="tts-button" id="ttsButton" onclick="speakAnswer()">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                        <p class="answer-sentence" id="answerSentence">
+                            She <span class="highlight">wrote</span> her homework.
+                        </p>
+                        <div class="grammar-explanation" id="grammarExplanation">
+                           <i class="fas fa-info-circle"></i>
+                           <span>"Wrote" is the irregular past tense of "write".</span>
+                        </div>
+                    </div>
+                </main>
+                
+                <footer class="card-footer">
+                    <button class="action-button" id="generateButton" onclick="generateNewMission()">
+                        ✨ Generate New Mission
+                    </button>
+                    <button class="action-button secondary" onclick="flipCard()">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Back to Query</span>
+                    </button>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cardInner = document.getElementById('cardInner');
+        const generateButton = document.getElementById('generateButton');
+        const ttsButton = document.getElementById('ttsButton');
+
+        const questionPromptEl = document.getElementById('questionPrompt');
+        const questionContentEl = document.getElementById('questionContent');
+        const answerSentenceEl = document.getElementById('answerSentence');
+        const grammarExplanationEl = document.getElementById('grammarExplanation').querySelector('span');
+        
+        let currentAnswer = "She wrote her homework.";
+
+        function flipCard() {
+            cardInner.classList.toggle('is-flipped');
+        }
+        
+        // --- Gemini API Integration ---
+
+        const apiKey = ""; // API key is handled by the environment
+        const textGenerationModel = "gemini-2.5-flash-preview-05-20";
+        const ttsModel = "gemini-2.5-flash-preview-tts";
+        const textApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${textGenerationModel}:generateContent?key=${apiKey}`;
+        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${apiKey}`;
+
+        async function generateNewMission() {
+            generateButton.disabled = true;
+            generateButton.innerHTML = '✨ Generating...';
+            
+            const systemPrompt = "You are an AI assistant that creates English grammar flashcards for intermediate learners.";
+            const userQuery = `
+                Generate a simple English grammar flashcard.
+                - Provide a prompt with a subject/pronoun, a base verb, and an object/complement, separated by slashes.
+                - Specify the tense to use (e.g., 'past tense', 'present continuous', 'future simple').
+                - Provide the correctly conjugated full sentence as the answer.
+                - Provide the main conjugated verb from the answer sentence.
+                - Provide a brief, one-sentence grammar explanation.
+            `;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "prompt": { "type": "STRING" },
+                            "tense": { "type": "STRING" },
+                            "answer_sentence": { "type": "STRING" },
+                            "conjugated_verb": { "type": "STRING" },
+                            "explanation": { "type": "STRING" }
+                        },
+                        required: ["prompt", "tense", "answer_sentence", "conjugated_verb", "explanation"]
+                    }
+                }
+            };
+
+            try {
+                const response = await fetch(textApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`API error: ${response.status}`);
+                
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error("Invalid response from API.");
+
+                const data = JSON.parse(text);
+                
+                // Update UI
+                questionPromptEl.textContent = `Construct a sentence using the ${data.tense}:`;
+                questionContentEl.textContent = data.prompt;
+                grammarExplanationEl.textContent = data.explanation;
+                currentAnswer = data.answer_sentence;
+
+                // Highlight the conjugated verb
+                const highlightedSentence = data.answer_sentence.replace(
+                    data.conjugated_verb,
+                    `<span class="highlight">${data.conjugated_verb}</span>`
+                );
+                answerSentenceEl.innerHTML = highlightedSentence;
+                
+                // If on the answer side, flip to the new question
+                if(cardInner.classList.contains('is-flipped')) {
+                    flipCard();
+                }
+
+            } catch (error) {
+                console.error("Error generating new mission:", error);
+                questionContentEl.textContent = "Error fetching new query. Please try again.";
+            } finally {
+                generateButton.disabled = false;
+                generateButton.innerHTML = '✨ Generate New Mission';
+            }
+        }
+
+        async function speakAnswer() {
+            if (!currentAnswer) return;
+            
+            const originalIcon = ttsButton.innerHTML;
+            ttsButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            ttsButton.disabled = true;
+
+            const payload = {
+                contents: [{ parts: [{ text: currentAnswer }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: "Puck" } // Cheerful, upbeat voice
+                        }
+                    }
+                }
+            };
+
+            try {
+                const response = await fetch(ttsApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`TTS API error: ${response.status}`);
+
+                const result = await response.json();
+                const audioData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                const mimeType = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+                    const pcmData = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmData);
+                    const wavBlob = pcmToWav(pcm16, 1, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                } else {
+                    throw new Error("Invalid audio data received.");
+                }
+            } catch (error) {
+                console.error("Error with text-to-speech:", error);
+            } finally {
+                ttsButton.innerHTML = originalIcon;
+                ttsButton.disabled = false;
+            }
+        }
+
+        // --- Audio Helper Functions ---
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function pcmToWav(pcmData, numChannels, sampleRate) {
+            const buffer = new ArrayBuffer(44 + pcmData.length * 2);
+            const view = new DataView(buffer);
+
+            // RIFF header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcmData.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            // FMT sub-chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); // PCM
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * 2, true);
+            view.setUint16(32, numChannels * 2, true);
+            view.setUint16(34, 16, true);
+            // data sub-chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcmData.length * 2, true);
+            // write the PCM data
+            for (let i = 0; i < pcmData.length; i++) {
+                view.setInt16(44 + i * 2, pcmData[i], true);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+    </script>
+</body>
+</html>
+
