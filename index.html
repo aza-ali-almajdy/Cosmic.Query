@@ -87,9 +87,19 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            padding: 40px 30px;
+            padding: 30px 30px 20px;
             text-align: center;
+        }
+        
+        .card-face > main {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            gap: 20px;
         }
         
         .card-back {
@@ -106,6 +116,7 @@
             flex-direction: column;
             gap: 10px;
             width: 100%;
+            padding-top: 15px; /* Add some space above the footer */
         }
         
         .card-title {
@@ -147,6 +158,7 @@
             border-radius: 10px;
             border: 1px solid rgba(0, 245, 212, 0.3);
             min-height: 80px;
+            width: 100%;
         }
 
         .question-text-box p:first-child {
