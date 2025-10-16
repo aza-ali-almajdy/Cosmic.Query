@@ -231,7 +231,7 @@
             margin-bottom: 10px;
         }
 
-        .tts-button:hover {
+        .tts-button:hover:not(:disabled) {
             background: var(--accent-cyan);
             color: var(--bg-dark);
         }
@@ -416,15 +416,15 @@
                         </button>
                         <p class="answer-sentence" id="answerSentence"></p>
                         <div class="grammar-explanation" id="grammarExplanation">
-                           <i class="fas fa-info-circle"></i>
-                           <span></span>
+                            <i class="fas fa-info-circle"></i>
+                            <span></span>
                         </div>
                     </div>
                 </main>
                 
                 <footer class="card-footer">
                     <button class="action-button" id="nextChallengeButton" onclick="nextChallenge()">
-                         ✨ New Challenge
+                            ✨ New Challenge
                     </button>
                     <button class="action-button secondary" onclick="flipCard()">
                         <i class="fas fa-sync-alt"></i>
@@ -450,6 +450,11 @@
         let shuffledChallenges = [];
 
         const challenges = [
+            // New Challenges Added:
+            { prompt: "She / write her homework", tense: "Future (going to)", answer_sentence: "She is going to write her homework.", conjugated_verb: "is going to write", explanation: "Use 'is going to' + base verb for future intention with singular subjects (she/he/it)." },
+            { prompt: "They / go to school", tense: "Future (going to)", answer_sentence: "They are going to go to school.", conjugated_verb: "are going to go", explanation: "Use 'are going to' + base verb for future intention with plural subjects (they/we/you)." },
+            { prompt: "She is the woman. / She cuts my hair.", tense: "Relative Clause (Who)", answer_sentence: "She is the woman who cuts my hair.", conjugated_verb: "who cuts", explanation: "Use the relative pronoun 'who' to connect the clauses and refer to a person (the woman)." },
+            // Original Challenges:
             { prompt: "She / write / a novel", tense: "Past Tense", answer_sentence: "She wrote a novel.", conjugated_verb: "wrote", explanation: "'Wrote' is the irregular past tense of 'write'." },
             { prompt: "They / go / to school", tense: "Past Simple Tense", answer_sentence: "They went to school.", conjugated_verb: "went", explanation: "'Went' is the irregular past tense of 'go'." },
             { prompt: "He / play / football", tense: "Present Progressive Tense", answer_sentence: "He is playing football.", conjugated_verb: "is playing", explanation: "Use 'is' + verb-ing for he/she/it in present progressive." },
@@ -508,63 +513,185 @@
             shuffleArray(shuffledChallenges);
             displayChallenge(currentChallengeIndex);
         });
+        
+        // --- TTS API Functions ---
 
-        function speakAnswer() {
-            if (!currentAnswer) return;
-            
-            // Check if browser supports speech synthesis
-            if (!('speechSynthesis' in window)) {
-                alert('عذراً، متصفحك لا يدعم تقنية النطق الصوتي');
-                return;
+        const apiKey = ""; 
+        const ttsModel = "gemini-2.5-flash-preview-tts";
+        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${apiKey}`;
+        const TTS_VOICE = "Kore"; // A firm, clear voice
+        const MAX_RETRIES = 3;
+
+        // Converts a Base64 string to an ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Converts PCM data to a WAV Blob
+        function pcmToWav(pcm16, sampleRate) {
+            const numChannels = 1;
+            const bytesPerSample = 2; // 16-bit PCM
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = pcm16.length * bytesPerSample;
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+            let offset = 0;
+
+            function writeString(s) {
+                for (let i = 0; i < s.length; i++) {
+                    view.setUint8(offset + i, s.charCodeAt(i));
+                }
+                offset += s.length;
             }
 
+            // RIFF chunk
+            writeString('RIFF');
+            view.setUint32(offset, 36 + dataSize, true); offset += 4;
+            writeString('WAVE');
+
+            // fmt chunk
+            writeString('fmt ');
+            view.setUint32(offset, 16, true); offset += 4; // Sub-chunk size (16 for PCM)
+            view.setUint16(offset, 1, true); offset += 2; // Audio Format (1 for PCM)
+            view.setUint16(offset, numChannels, true); offset += 2;
+            view.setUint32(offset, sampleRate, true); offset += 4;
+            view.setUint32(offset, byteRate, true); offset += 4;
+            view.setUint16(offset, blockAlign, true); offset += 2;
+            view.setUint16(offset, bytesPerSample * 8, true); offset += 2; // Bits per sample (16)
+
+            // data chunk
+            writeString('data');
+            view.setUint32(offset, dataSize, true); offset += 4;
+
+            // Write PCM data
+            for (let i = 0; i < pcm16.length; i++) {
+                view.setInt16(offset, pcm16[i], true);
+                offset += 2;
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+
+        async function fetchTtsWithRetry(payload, retries = MAX_RETRIES) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(ttsApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        return await response.json();
+                    }
+
+                    // If not OK, and it's not the last retry, wait with exponential backoff
+                    if (i < retries - 1) {
+                        const delay = Math.pow(2, i) * 1000 + Math.floor(Math.random() * 1000);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    } else {
+                        throw new Error(`TTS API failed after ${retries} attempts: ${response.statusText}`);
+                    }
+                } catch (error) {
+                    if (i === retries - 1) {
+                         throw new Error(`TTS API request error after ${retries} attempts: ${error.message}`);
+                    }
+                    const delay = Math.pow(2, i) * 1000 + Math.floor(Math.random() * 1000);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        async function speakAnswer() {
+            if (!currentAnswer) return;
+
             const originalIcon = ttsButton.innerHTML;
+            const originalText = ttsButton.querySelector('span')?.textContent || '';
+            
+            // Set loading state
             ttsButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             ttsButton.disabled = true;
 
-            // Cancel any ongoing speech
-            window.speechSynthesis.cancel();
+            const payload = {
+                contents: [{
+                    parts: [{ text: currentAnswer }]
+                }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: TTS_VOICE }
+                        }
+                    }
+                }
+            };
 
-            // Create speech utterance
-            const utterance = new SpeechSynthesisUtterance(currentAnswer);
-            
-            // Configure voice settings
-            utterance.lang = 'en-US'; // English language
-            utterance.rate = 0.9; // Slightly slower for clarity
-            utterance.pitch = 1.0; // Normal pitch
-            utterance.volume = 1.0; // Full volume
+            let audioUrl;
+            let audioPlayer = document.getElementById('audioPlayer');
+            if (audioPlayer) audioPlayer.pause();
 
-            // Try to use a female voice if available
-            const voices = window.speechSynthesis.getVoices();
-            const femaleVoice = voices.find(voice => 
-                voice.lang.startsWith('en') && 
-                (voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Victoria'))
-            );
-            if (femaleVoice) {
-                utterance.voice = femaleVoice;
+            try {
+                const result = await fetchTtsWithRetry(payload);
+
+                const part = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+
+                if (!audioData || !mimeType || !mimeType.startsWith("audio/L16")) {
+                    throw new Error("Invalid audio response from API.");
+                }
+
+                // 1. Extract Sample Rate
+                const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+                
+                // 2. Convert Base64 to PCM ArrayBuffer
+                const pcmDataBuffer = base64ToArrayBuffer(audioData);
+                
+                // 3. API returns signed PCM16 audio data.
+                const pcm16 = new Int16Array(pcmDataBuffer);
+                
+                // 4. Convert PCM to WAV Blob
+                const wavBlob = pcmToWav(pcm16, sampleRate);
+                
+                // 5. Create URL and prepare player
+                audioUrl = URL.createObjectURL(wavBlob);
+
+                if (!audioPlayer) {
+                    audioPlayer = document.createElement('audio');
+                    audioPlayer.id = 'audioPlayer';
+                    document.body.appendChild(audioPlayer);
+                }
+
+                audioPlayer.src = audioUrl;
+
+                audioPlayer.onended = () => {
+                    ttsButton.innerHTML = originalIcon;
+                    ttsButton.disabled = false;
+                    URL.revokeObjectURL(audioUrl);
+                };
+
+                await audioPlayer.play();
+
+            } catch (error) {
+                console.error('Error during Text-to-Speech:', error);
+                // Inform the user discreetly (e.g., console log or a small UI update, not alert)
+            } finally {
+                // Reset button state if not playing (e.g., if an error occurred)
+                if (!audioPlayer || audioPlayer.paused) {
+                    ttsButton.innerHTML = originalIcon;
+                    ttsButton.disabled = false;
+                    if (audioUrl) URL.revokeObjectURL(audioUrl);
+                }
             }
-
-            // Event handlers
-            utterance.onend = () => {
-                ttsButton.innerHTML = originalIcon;
-                ttsButton.disabled = false;
-            };
-
-            utterance.onerror = (event) => {
-                console.error('Speech synthesis error:', event);
-                ttsButton.innerHTML = originalIcon;
-                ttsButton.disabled = false;
-            };
-
-            // Speak the text
-            window.speechSynthesis.speak(utterance);
-        }
-
-        // Load voices when they become available
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = () => {
-                window.speechSynthesis.getVoices();
-            };
         }
     </script>
 </body>
