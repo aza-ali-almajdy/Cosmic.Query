@@ -519,7 +519,7 @@
         const apiKey = ""; 
         const ttsModel = "gemini-2.5-flash-preview-tts";
         const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${apiKey}`;
-        const TTS_VOICE = "Kore"; // A firm, clear voice
+        const TTS_VOICE = "Zephyr"; // تم التغيير إلى Zephyr (صوت مشرق)
         const MAX_RETRIES = 3;
 
         // Converts a Base64 string to an ArrayBuffer
@@ -591,6 +591,10 @@
 
                     if (response.ok) {
                         return await response.json();
+                    }
+                    
+                    if (response.status === 401 || response.status === 403) {
+                         console.warn(`TTS API failed with status ${response.status}. This usually indicates an authentication issue (API key problem).`);
                     }
 
                     // If not OK, and it's not the last retry, wait with exponential backoff
