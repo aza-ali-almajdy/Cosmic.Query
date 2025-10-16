@@ -272,6 +272,25 @@
             opacity: 0.7;
             animation: pulse 1.5s infinite;
         }
+
+        .teacher-name {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-light);
+            text-shadow: 0 0 10px var(--accent-cyan), 0 0 20px var(--accent-magenta);
+            z-index: 100;
+            padding: 8px 20px;
+            background-color: rgba(48, 43, 99, 0.5);
+            border: 1px solid rgba(0, 245, 212, 0.3);
+            border-radius: 50px;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
         
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(0, 245, 212, 0.4); }
@@ -285,23 +304,42 @@
             100% { transform: translateY(0px); }
         }
         
-        @media (max-width: 400px) {
+        @media (max-width: 767px) {
             body {
                 padding: 0;
             }
+            .teacher-name {
+                font-size: 18px;
+                top: 15px;
+            }
             .mobile-card-container {
                 width: 100%;
-                height: 100vh;
+                height: 100dvh; /* Use dynamic viewport height for better mobile handling */
                 height: -webkit-fill-available;
                 max-height: none;
             }
             .card-face {
                 border-radius: 0;
+                padding: 20px 15px; /* Adjust horizontal padding */
+                justify-content: space-between; /* Better vertical spacing */
+            }
+            .planet-svg {
+                width: clamp(150px, 45vw, 180px); /* Fluid width */
+            }
+            .astronaut-container {
+                width: clamp(110px, 35vw, 130px); /* Fluid width */
+            }
+            .card-title, .answer-sentence {
+                font-size: clamp(20px, 5.5vw, 22px); /* Fluid font size */
+            }
+            .question-text-box p:last-child {
+                font-size: clamp(16px, 4.8vw, 18px); /* Fluid font size */
             }
         }
     </style>
 </head>
 <body>
+    <div class="teacher-name">T. Azza</div>
     <div class="stars"></div>
     <div class="mobile-card-container">
         <div class="card-inner" id="cardInner">
@@ -333,14 +371,14 @@
                         </svg>
                     </div>
                     <div class="question-text-box" id="questionBox">
-                        <p id="questionPrompt">Construct a sentence in the past tense:</p>
-                        <p id="questionContent">She / write / her homework</p>
+                        <p id="questionPrompt"></p>
+                        <p id="questionContent"></p>
                     </div>
                 </main>
 
                 <footer class="card-footer">
                     <button class="action-button" onclick="flipCard()">
-                        <span>Engage Hyperdrive</span>
+                        <span>Reveal Answer</span>
                         <i class="fas fa-rocket"></i>
                     </button>
                 </footer>
@@ -365,7 +403,7 @@
                         </defs>
                         <g filter="url(#astroGlow)">
                             <path fill="#302B63" d="M50 8c-8.8 0-16 7.2-16 16s7.2 16 16 16 16-7.2 16-16S58.8 8 50 8z"/>
-                            <path fill="url(#astronautGradient)" d="M50 10c-7.7 0-14 6.3-14 14s6.3 14 14 14 14-6.3 14-14-6.3-14-14-14z"/>
+                            <path fill="url(#astronautGradient)" d="M50 10c-7.7 0-14 6.3-14 14s6.3 14 14 14 14-6.3 14-14-6.3-14-14z"/>
                             <path fill="#00F5D4" d="M40 20h20v8H40z" opacity="0.7"/>
                             <path fill="url(#astronautGradient)" d="M68 40H32c-4.4 0-8 3.6-8 8v28c0 4.4 3.6 8 8 8h36c4.4 0 8-3.6 8-8V48c0-4.4-3.6-8-8-8z"/>
                             <rect x="45" y="55" width="10" height="10" rx="2" fill="#302B63"/>
@@ -375,19 +413,17 @@
                         <button class="tts-button" id="ttsButton" onclick="speakAnswer()">
                             <i class="fas fa-volume-up"></i>
                         </button>
-                        <p class="answer-sentence" id="answerSentence">
-                            She <span class="highlight">wrote</span> her homework.
-                        </p>
+                        <p class="answer-sentence" id="answerSentence"></p>
                         <div class="grammar-explanation" id="grammarExplanation">
                            <i class="fas fa-info-circle"></i>
-                           <span>"Wrote" is the irregular past tense of "write".</span>
+                           <span></span>
                         </div>
                     </div>
                 </main>
                 
                 <footer class="card-footer">
-                    <button class="action-button" id="generateButton" onclick="generateNewMission()">
-                        ✨ Generate New Mission
+                    <button class="action-button" id="nextChallengeButton" onclick="nextChallenge()">
+                         ✨ New Challenge
                     </button>
                     <button class="action-button secondary" onclick="flipCard()">
                         <i class="fas fa-sync-alt"></i>
@@ -400,7 +436,7 @@
 
     <script>
         const cardInner = document.getElementById('cardInner');
-        const generateButton = document.getElementById('generateButton');
+        const nextChallengeButton = document.getElementById('nextChallengeButton');
         const ttsButton = document.getElementById('ttsButton');
 
         const questionPromptEl = document.getElementById('questionPrompt');
@@ -408,93 +444,74 @@
         const answerSentenceEl = document.getElementById('answerSentence');
         const grammarExplanationEl = document.getElementById('grammarExplanation').querySelector('span');
         
-        let currentAnswer = "She wrote her homework.";
+        let currentAnswer = "";
+        let currentChallengeIndex = 0;
+        let shuffledChallenges = [];
+
+        const challenges = [
+            { prompt: "She / write / a novel", tense: "Past Tense", answer_sentence: "She wrote a novel.", conjugated_verb: "wrote", explanation: "'Wrote' is the irregular past tense of 'write'." },
+            { prompt: "They / go / to school", tense: "Past Simple Tense", answer_sentence: "They went to school.", conjugated_verb: "went", explanation: "'Went' is the irregular past tense of 'go'." },
+            { prompt: "He / play / football", tense: "Present Progressive Tense", answer_sentence: "He is playing football.", conjugated_verb: "is playing", explanation: "Use 'is' + verb-ing for he/she/it in present progressive." },
+            { prompt: "We / speak / English", tense: "Present Progressive Tense", answer_sentence: "We are speaking English.", conjugated_verb: "are speaking", explanation: "Use 'are' + verb-ing for we/they/you in present progressive." },
+            { prompt: "They slept", tense: "Make Negative", answer_sentence: "They did not sleep.", conjugated_verb: "did not sleep", explanation: "To make a past simple sentence negative, use 'did not' + base verb." },
+            { prompt: "He went to Abha", tense: "Make Negative", answer_sentence: "He did not go to Abha.", conjugated_verb: "did not go", explanation: "Use 'did not' and the base form of the verb 'go'." },
+            { prompt: "I / be / a student", tense: "Talk about yourself (Present Simple)", answer_sentence: "I am a student.", conjugated_verb: "am", explanation: "Use 'am' for the verb 'be' with the pronoun 'I'." },
+            { prompt: "Ali / eat / an apple", tense: "Present Simple Tense", answer_sentence: "Ali eats an apple.", conjugated_verb: "eats", explanation: "Add '-s' to the verb for third-person singular (Ali) in the present simple." },
+            { prompt: "She / cook / food", tense: "Present Simple Tense", answer_sentence: "She cooks food.", conjugated_verb: "cooks", explanation: "Add '-s' to the verb for 'she' in the present simple." },
+            { prompt: "He / read / novels", tense: "Used To", answer_sentence: "He used to read novels.", conjugated_verb: "used to read", explanation: "'Used to' describes a past habit or state that is no longer true." },
+            { prompt: "She / listen / to the teacher", tense: "Used To", answer_sentence: "She used to listen to the teacher.", conjugated_verb: "used to listen", explanation: "'Used to' is followed by the base form of the verb." }
+        ];
 
         function flipCard() {
             cardInner.classList.toggle('is-flipped');
         }
-        
-        // --- Gemini API Integration ---
 
-        const apiKey = ""; // API key is handled by the environment
-        const textGenerationModel = "gemini-2.5-flash-preview-05-20";
-        const ttsModel = "gemini-2.5-flash-preview-tts";
-        const textApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${textGenerationModel}:generateContent?key=${apiKey}`;
-        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${apiKey}`;
-
-        async function generateNewMission() {
-            generateButton.disabled = true;
-            generateButton.innerHTML = '✨ Generating...';
-            
-            const systemPrompt = "You are an AI assistant that creates English grammar flashcards for intermediate learners.";
-            const userQuery = `
-                Generate a simple English grammar flashcard.
-                - Provide a prompt with a subject/pronoun, a base verb, and an object/complement, separated by slashes.
-                - Specify the tense to use (e.g., 'past tense', 'present continuous', 'future simple').
-                - Provide the correctly conjugated full sentence as the answer.
-                - Provide the main conjugated verb from the answer sentence.
-                - Provide a brief, one-sentence grammar explanation.
-            `;
-
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            "prompt": { "type": "STRING" },
-                            "tense": { "type": "STRING" },
-                            "answer_sentence": { "type": "STRING" },
-                            "conjugated_verb": { "type": "STRING" },
-                            "explanation": { "type": "STRING" }
-                        },
-                        required: ["prompt", "tense", "answer_sentence", "conjugated_verb", "explanation"]
-                    }
-                }
-            };
-
-            try {
-                const response = await fetch(textApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error(`API error: ${response.status}`);
-                
-                const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!text) throw new Error("Invalid response from API.");
-
-                const data = JSON.parse(text);
-                
-                // Update UI
-                questionPromptEl.textContent = `Construct a sentence using the ${data.tense}:`;
-                questionContentEl.textContent = data.prompt;
-                grammarExplanationEl.textContent = data.explanation;
-                currentAnswer = data.answer_sentence;
-
-                // Highlight the conjugated verb
-                const highlightedSentence = data.answer_sentence.replace(
-                    data.conjugated_verb,
-                    `<span class="highlight">${data.conjugated_verb}</span>`
-                );
-                answerSentenceEl.innerHTML = highlightedSentence;
-                
-                // If on the answer side, flip to the new question
-                if(cardInner.classList.contains('is-flipped')) {
-                    flipCard();
-                }
-
-            } catch (error) {
-                console.error("Error generating new mission:", error);
-                questionContentEl.textContent = "Error fetching new query. Please try again.";
-            } finally {
-                generateButton.disabled = false;
-                generateButton.innerHTML = '✨ Generate New Mission';
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
             }
         }
+
+        function displayChallenge(index) {
+            const challenge = shuffledChallenges[index];
+            
+            questionPromptEl.textContent = `Task: ${challenge.tense}`;
+            questionContentEl.textContent = challenge.prompt;
+            grammarExplanationEl.textContent = challenge.explanation;
+            currentAnswer = challenge.answer_sentence;
+
+            const highlightedSentence = challenge.answer_sentence.replace(
+                challenge.conjugated_verb,
+                `<span class="highlight">${challenge.conjugated_verb}</span>`
+            );
+            answerSentenceEl.innerHTML = highlightedSentence;
+            
+            if (cardInner.classList.contains('is-flipped')) {
+                flipCard();
+            }
+        }
+
+        function nextChallenge() {
+            currentChallengeIndex++;
+            if (currentChallengeIndex >= shuffledChallenges.length) {
+                currentChallengeIndex = 0; // Loop back to the beginning
+                shuffleArray(shuffledChallenges); // Re-shuffle for a new order
+            }
+            displayChallenge(currentChallengeIndex);
+            nextChallengeButton.textContent = "✨ New Challenge";
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            shuffledChallenges = [...challenges];
+            shuffleArray(shuffledChallenges);
+            displayChallenge(currentChallengeIndex);
+        });
+
+        // --- Gemini API TTS Integration ---
+        const apiKey = ""; // API key is handled by the environment
+        const ttsModel = "gemini-2.5-flash-preview-tts";
+        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${apiKey}`;
 
         async function speakAnswer() {
             if (!currentAnswer) return;
@@ -547,7 +564,6 @@
             }
         }
 
-        // --- Audio Helper Functions ---
         function base64ToArrayBuffer(base64) {
             const binaryString = window.atob(base64);
             const len = binaryString.length;
@@ -561,28 +577,22 @@
         function pcmToWav(pcmData, numChannels, sampleRate) {
             const buffer = new ArrayBuffer(44 + pcmData.length * 2);
             const view = new DataView(buffer);
-
-            // RIFF header
             writeString(view, 0, 'RIFF');
             view.setUint32(4, 36 + pcmData.length * 2, true);
             writeString(view, 8, 'WAVE');
-            // FMT sub-chunk
             writeString(view, 12, 'fmt ');
             view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true); // PCM
+            view.setUint16(20, 1, true);
             view.setUint16(22, numChannels, true);
             view.setUint32(24, sampleRate, true);
             view.setUint32(28, sampleRate * numChannels * 2, true);
             view.setUint16(32, numChannels * 2, true);
             view.setUint16(34, 16, true);
-            // data sub-chunk
             writeString(view, 36, 'data');
             view.setUint32(40, pcmData.length * 2, true);
-            // write the PCM data
             for (let i = 0; i < pcmData.length; i++) {
                 view.setInt16(44 + i * 2, pcmData[i], true);
             }
-
             return new Blob([view], { type: 'audio/wav' });
         }
 
@@ -594,4 +604,6 @@
     </script>
 </body>
 </html>
+
+
 
