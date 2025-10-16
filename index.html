@@ -514,200 +514,92 @@
             displayChallenge(currentChallengeIndex);
         });
         
-        // --- TTS API Functions ---
-
-        const apiKey = ""; 
-        const ttsModel = "gemini-2.5-flash-preview-tts";
-        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${apiKey}`;
-        const TTS_VOICE = "Zephyr"; // تم التغيير إلى Zephyr (صوت مشرق)
-        const MAX_RETRIES = 3;
-
-        // Converts a Base64 string to an ArrayBuffer
-        function base64ToArrayBuffer(base64) {
-            const binaryString = atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        // Converts PCM data to a WAV Blob
-        function pcmToWav(pcm16, sampleRate) {
-            const numChannels = 1;
-            const bytesPerSample = 2; // 16-bit PCM
-            const blockAlign = numChannels * bytesPerSample;
-            const byteRate = sampleRate * blockAlign;
-            const dataSize = pcm16.length * bytesPerSample;
-            const buffer = new ArrayBuffer(44 + dataSize);
-            const view = new DataView(buffer);
-            let offset = 0;
-
-            function writeString(s) {
-                for (let i = 0; i < s.length; i++) {
-                    view.setUint8(offset + i, s.charCodeAt(i));
-                }
-                offset += s.length;
-            }
-
-            // RIFF chunk
-            writeString('RIFF');
-            view.setUint32(offset, 36 + dataSize, true); offset += 4;
-            writeString('WAVE');
-
-            // fmt chunk
-            writeString('fmt ');
-            view.setUint32(offset, 16, true); offset += 4; // Sub-chunk size (16 for PCM)
-            view.setUint16(offset, 1, true); offset += 2; // Audio Format (1 for PCM)
-            view.setUint16(offset, numChannels, true); offset += 2;
-            view.setUint32(offset, sampleRate, true); offset += 4;
-            view.setUint32(offset, byteRate, true); offset += 4;
-            view.setUint16(offset, blockAlign, true); offset += 2;
-            view.setUint16(offset, bytesPerSample * 8, true); offset += 2; // Bits per sample (16)
-
-            // data chunk
-            writeString('data');
-            view.setUint32(offset, dataSize, true); offset += 4;
-
-            // Write PCM data
-            for (let i = 0; i < pcm16.length; i++) {
-                view.setInt16(offset, pcm16[i], true);
-                offset += 2;
-            }
-
-            return new Blob([view], { type: 'audio/wav' });
-        }
-
-
-        async function fetchTtsWithRetry(payload, retries = MAX_RETRIES) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(ttsApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (response.ok) {
-                        return await response.json();
-                    }
-                    
-                    if (response.status === 401 || response.status === 403) {
-                         console.warn(`TTS API failed with status ${response.status}. This usually indicates an authentication issue (API key problem).`);
-                    }
-
-                    // If not OK, and it's not the last retry, wait with exponential backoff
-                    if (i < retries - 1) {
-                        const delay = Math.pow(2, i) * 1000 + Math.floor(Math.random() * 1000);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    } else {
-                        throw new Error(`TTS API failed after ${retries} attempts: ${response.statusText}`);
-                    }
-                } catch (error) {
-                    if (i === retries - 1) {
-                         throw new Error(`TTS API request error after ${retries} attempts: ${error.message}`);
-                    }
-                    const delay = Math.pow(2, i) * 1000 + Math.floor(Math.random() * 1000);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        }
+        // --- Web Speech API (Built-in TTS) ---
         
-        async function speakAnswer() {
+        function speakAnswer() {
             if (!currentAnswer) return;
+            
+            // Check if browser supports Speech Synthesis
+            if (!('speechSynthesis' in window)) {
+                // Use grammarExplanation area to display error instead of alert
+                grammarExplanationEl.textContent = "عذراً، متصفحك لا يدعم تشغيل الصوت (Speech Synthesis)";
+                setTimeout(() => {
+                    displayChallenge(currentChallengeIndex); // Restore original explanation
+                }, 3000);
+                return;
+            }
 
             const originalIcon = ttsButton.innerHTML;
-            
-            // 1. Store the original explanation text to restore it later
-            const originalExplanation = grammarExplanationEl.textContent; 
+            const originalExplanation = grammarExplanationEl.textContent;
+
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
 
             // Set loading state
             ttsButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             ttsButton.disabled = true;
 
-            const payload = {
-                contents: [{
-                    parts: [{ text: currentAnswer }]
-                }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: TTS_VOICE }
-                        }
-                    }
-                }
-            };
-
-            let audioUrl;
-            let audioPlayer = document.getElementById('audioPlayer');
-            if (audioPlayer) audioPlayer.pause();
-
             try {
-                const result = await fetchTtsWithRetry(payload);
+                const utterance = new SpeechSynthesisUtterance(currentAnswer);
+                
+                // Configure voice settings
+                utterance.lang = 'en-US'; // English language
+                utterance.rate = 0.9; // Slightly slower for clarity
+                utterance.pitch = 1.0; // Normal pitch
+                utterance.volume = 1.0; // Full volume
 
-                const part = result?.candidates?.[0]?.content?.parts?.[0];
-                const audioData = part?.inlineData?.data;
-                const mimeType = part?.inlineData?.mimeType;
-
-                if (!audioData || !mimeType || !mimeType.startsWith("audio/L16")) {
-                    throw new Error("Invalid audio response from API.");
+                // Try to select a preferred English voice (Female preference, then any English)
+                const voices = window.speechSynthesis.getVoices();
+                const preferredVoice = voices.find(voice => 
+                    voice.lang.startsWith('en') && (voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Victoria'))
+                ) || voices.find(voice => voice.lang.startsWith('en'));
+                
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
                 }
 
-                // 1. Extract Sample Rate
-                const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
-                
-                // 2. Convert Base64 to PCM ArrayBuffer
-                const pcmDataBuffer = base64ToArrayBuffer(audioData);
-                
-                // 3. API returns signed PCM16 audio data.
-                const pcm16 = new Int16Array(pcmDataBuffer);
-                
-                // 4. Convert PCM to WAV Blob
-                const wavBlob = pcmToWav(pcm16, sampleRate);
-                
-                // 5. Create URL and prepare player
-                audioUrl = URL.createObjectURL(wavBlob);
-
-                if (!audioPlayer) {
-                    audioPlayer = document.createElement('audio');
-                    audioPlayer.id = 'audioPlayer';
-                    document.body.appendChild(audioPlayer);
-                }
-
-                audioPlayer.src = audioUrl;
-
-                audioPlayer.onended = () => {
+                // Event handlers
+                utterance.onend = () => {
                     ttsButton.innerHTML = originalIcon;
                     ttsButton.disabled = false;
-                    URL.revokeObjectURL(audioUrl);
                     // Restore explanation text on success
                     grammarExplanationEl.textContent = originalExplanation; 
                 };
 
-                await audioPlayer.play();
+                utterance.onerror = (event) => {
+                    console.error('Speech synthesis error:', event);
+                    // Show error message to user
+                    grammarExplanationEl.textContent = "عذراً، حدث خطأ في تشغيل الصوت";
+                    ttsButton.innerHTML = originalIcon;
+                    ttsButton.disabled = false;
+                    
+                    setTimeout(() => {
+                        grammarExplanationEl.textContent = originalExplanation;
+                    }, 3000);
+                };
+
+                // Speak the text
+                window.speechSynthesis.speak(utterance);
 
             } catch (error) {
                 console.error('Error during Text-to-Speech:', error);
                 
-                // Show user-friendly error message in Arabic (Error Feedback)
-                grammarExplanationEl.textContent = "عذراً، فشل تشغيل الصوت. تحقق من اتصالك بالإنترنت. (انظر Console للمزيد)";
-                
-                // Reset button immediately as playback failed
+                // Show error message to user
+                grammarExplanationEl.textContent = "عذراً، فشل تشغيل الصوت";
                 ttsButton.innerHTML = originalIcon;
                 ttsButton.disabled = false;
-                if (audioUrl) URL.revokeObjectURL(audioUrl); 
-
-                // Restore original explanation after 5 seconds
+                
                 setTimeout(() => {
                     grammarExplanationEl.textContent = originalExplanation;
-                }, 5000); 
-
-            } finally {
-                // No need for further cleanup here, handled in catch/onended
+                }, 3000);
             }
+        }
+
+        // Load voices when they become available
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices();
+            };
         }
     </script>
 </body>
