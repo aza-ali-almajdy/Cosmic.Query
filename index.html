@@ -509,97 +509,62 @@
             displayChallenge(currentChallengeIndex);
         });
 
-        const apiKey = "";
-        const ttsModel = "gemini-2.5-flash-preview-tts";
-        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${apiKey}`;
-
-        async function speakAnswer() {
+        function speakAnswer() {
             if (!currentAnswer) return;
             
+            // Check if browser supports speech synthesis
+            if (!('speechSynthesis' in window)) {
+                alert('عذراً، متصفحك لا يدعم تقنية النطق الصوتي');
+                return;
+            }
+
             const originalIcon = ttsButton.innerHTML;
             ttsButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             ttsButton.disabled = true;
 
-            const payload = {
-                contents: [{ parts: [{ text: currentAnswer }] }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Puck" }
-                        }
-                    }
-                }
-            };
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
 
-            try {
-                const response = await fetch(ttsApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error(`TTS API error: ${response.status}`);
+            // Create speech utterance
+            const utterance = new SpeechSynthesisUtterance(currentAnswer);
+            
+            // Configure voice settings
+            utterance.lang = 'en-US'; // English language
+            utterance.rate = 0.9; // Slightly slower for clarity
+            utterance.pitch = 1.0; // Normal pitch
+            utterance.volume = 1.0; // Full volume
 
-                const result = await response.json();
-                const audioData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-                const mimeType = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType;
+            // Try to use a female voice if available
+            const voices = window.speechSynthesis.getVoices();
+            const femaleVoice = voices.find(voice => 
+                voice.lang.startsWith('en') && 
+                (voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Victoria'))
+            );
+            if (femaleVoice) {
+                utterance.voice = femaleVoice;
+            }
 
-                if (audioData && mimeType && mimeType.startsWith("audio/")) {
-                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
-                    const pcmData = base64ToArrayBuffer(audioData);
-                    const pcm16 = new Int16Array(pcmData);
-                    const wavBlob = pcmToWav(pcm16, 1, sampleRate);
-                    const audioUrl = URL.createObjectURL(wavBlob);
-                    const audio = new Audio(audioUrl);
-                    audio.play();
-                } else {
-                    throw new Error("Invalid audio data received.");
-                }
-            } catch (error) {
-                console.error("Error with text-to-speech:", error);
-            } finally {
+            // Event handlers
+            utterance.onend = () => {
                 ttsButton.innerHTML = originalIcon;
                 ttsButton.disabled = false;
-            }
+            };
+
+            utterance.onerror = (event) => {
+                console.error('Speech synthesis error:', event);
+                ttsButton.innerHTML = originalIcon;
+                ttsButton.disabled = false;
+            };
+
+            // Speak the text
+            window.speechSynthesis.speak(utterance);
         }
 
-        function base64ToArrayBuffer(base64) {
-            const binaryString = window.atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        function pcmToWav(pcmData, numChannels, sampleRate) {
-            const buffer = new ArrayBuffer(44 + pcmData.length * 2);
-            const view = new DataView(buffer);
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + pcmData.length * 2, true);
-            writeString(view, 8, 'WAVE');
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true);
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, sampleRate * numChannels * 2, true);
-            view.setUint16(32, numChannels * 2, true);
-            view.setUint16(34, 16, true);
-            writeString(view, 36, 'data');
-            view.setUint32(40, pcmData.length * 2, true);
-            for (let i = 0; i < pcmData.length; i++) {
-                view.setInt16(44 + i * 2, pcmData[i], true);
-            }
-            return new Blob([view], { type: 'audio/wav' });
-        }
-
-        function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
+        // Load voices when they become available
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices();
+            };
         }
     </script>
 </body>
