@@ -614,8 +614,10 @@
             if (!currentAnswer) return;
 
             const originalIcon = ttsButton.innerHTML;
-            const originalText = ttsButton.querySelector('span')?.textContent || '';
             
+            // 1. Store the original explanation text to restore it later
+            const originalExplanation = grammarExplanationEl.textContent; 
+
             // Set loading state
             ttsButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             ttsButton.disabled = true;
@@ -677,20 +679,30 @@
                     ttsButton.innerHTML = originalIcon;
                     ttsButton.disabled = false;
                     URL.revokeObjectURL(audioUrl);
+                    // Restore explanation text on success
+                    grammarExplanationEl.textContent = originalExplanation; 
                 };
 
                 await audioPlayer.play();
 
             } catch (error) {
                 console.error('Error during Text-to-Speech:', error);
-                // Inform the user discreetly (e.g., console log or a small UI update, not alert)
+                
+                // Show user-friendly error message in Arabic (Error Feedback)
+                grammarExplanationEl.textContent = "عذراً، فشل تشغيل الصوت. تحقق من اتصالك بالإنترنت. (انظر Console للمزيد)";
+                
+                // Reset button immediately as playback failed
+                ttsButton.innerHTML = originalIcon;
+                ttsButton.disabled = false;
+                if (audioUrl) URL.revokeObjectURL(audioUrl); 
+
+                // Restore original explanation after 5 seconds
+                setTimeout(() => {
+                    grammarExplanationEl.textContent = originalExplanation;
+                }, 5000); 
+
             } finally {
-                // Reset button state if not playing (e.g., if an error occurred)
-                if (!audioPlayer || audioPlayer.paused) {
-                    ttsButton.innerHTML = originalIcon;
-                    ttsButton.disabled = false;
-                    if (audioUrl) URL.revokeObjectURL(audioUrl);
-                }
+                // No need for further cleanup here, handled in catch/onended
             }
         }
     </script>
